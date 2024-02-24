@@ -5,6 +5,7 @@ import argparse
 # Отдельные байты для команд
 BROADCAST_ADDRESS = 0xFD
 EXTENDED_FUNCTION_CODE = 0x46
+EXTENDED_FUNCTION_CODE_LEGASY = 0x60
 START_SCAN_SUBCOMMAND = 0x01
 CONTINUE_SCAN_SUBCOMMAND = 0x02
 END_SCAN_SUBCOMMAND = 0x04
@@ -96,7 +97,7 @@ def process_response(response, debug=False):
         return False  # Возвращаем False, чтобы продолжить цикл
 
     # Проверка наличия широковещательного адреса, команды работы с расширенными функциями и субкоманды ответа на сканирование
-    if (response[0] == BROADCAST_ADDRESS and response[1] == EXTENDED_FUNCTION_CODE and
+    if (response[0] == BROADCAST_ADDRESS and (response[1] == EXTENDED_FUNCTION_CODE or response[1] == EXTENDED_FUNCTION_CODE_LEGASY) and
             (response[2] == RESPONSE_SUBCOMMAND or response[2] == END_SCAN_SUBCOMMAND)):
         # Проверка, что ответ содержит функцию конца сканирования
         if response[2] == END_SCAN_SUBCOMMAND:
@@ -119,6 +120,7 @@ def main():
     parser = argparse.ArgumentParser(description='Сканирование устройств.')
     parser.add_argument('--serial-port', default='/dev/ttyACM0', help='Порт для подключения к устройству (по умолчанию /dev/ttyACM0)')
     parser.add_argument('--debug', action='store_true', help='Включить режим отладки.')
+    parser.add_argument('--deprecated', action='store_true', help='Использовать устаревшую функцию сканирования 0x60 вместо 0x46.')
     args = parser.parse_args()
 
     # Используем значения из аргументов командной строки
@@ -129,17 +131,22 @@ def main():
         print(f"Сканирую шину на скорости {baud_rate} бод...")
         try:
             # Открываем последовательный порт с текущей скоростью
-            ser = serial.Serial(SERIAL_PORT, baud_rate, timeout=1)
+            ser = serial.Serial(port=SERIAL_PORT, baudrate=baud_rate, bytesize=8, parity='N', stopbits=2, timeout=1)
 
             # Создаем команду начала сканирования
-            start_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, START_SCAN_SUBCOMMAND)
+            if (args.deprecated == True):
+                EXTENDED_FUNCTION_CODE_CURRENT = EXTENDED_FUNCTION_CODE_LEGASY
+            else:
+                EXTENDED_FUNCTION_CODE_CURRENT = EXTENDED_FUNCTION_CODE
+
+            start_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE_CURRENT, START_SCAN_SUBCOMMAND)
 
             # Начинаем сканирование
             response = send_command(ser, start_scan_command)
             if not process_response(response, debug=args.debug):
                 # Если сканирование не завершено, продолжаем
                 while True:
-                    continue_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, CONTINUE_SCAN_SUBCOMMAND)
+                    continue_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE_CURRENT, CONTINUE_SCAN_SUBCOMMAND)
                     response = send_command(ser, continue_scan_command)
                     if process_response(response, debug=args.debug):
                         break  # Выходим из цикла, если сканирование завершено
