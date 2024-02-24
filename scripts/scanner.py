@@ -2,10 +2,6 @@ import serial
 import time
 import argparse
 
-# Константы для настройки порта
-SERIAL_PORT = '/dev/ttyACM0'
-BAUD_RATE = 115200
-
 # Отдельные байты для команд
 BROADCAST_ADDRESS = 0xFD
 EXTENDED_FUNCTION_CODE = 0x46
@@ -13,6 +9,10 @@ START_SCAN_SUBCOMMAND = 0x01
 CONTINUE_SCAN_SUBCOMMAND = 0x02
 END_SCAN_SUBCOMMAND = 0x04
 RESPONSE_SUBCOMMAND = 0x03  # Субкоманда ответа на сканирование
+
+# Список допустимых скоростей, отсортированных по убыванию
+BAUD_RATES = [115200, 57600, 38400, 19200, 9600, 4800, 2400, 1200]
+
 
 # Функция для вычисления контрольной суммы
 def calculate_crc(data):
@@ -119,27 +119,37 @@ def process_response(response, debug=False):
 def main():
     # Обработка аргументов командной строки
     parser = argparse.ArgumentParser(description='Сканирование устройств.')
+    parser.add_argument('--serial-port', default='/dev/ttyACM0', help='Порт для подключения к устройству (по умолчанию /dev/ttyACM0)')
     parser.add_argument('--debug', action='store_true', help='Включить режим отладки.')
     args = parser.parse_args()
 
-    # Открываем последовательный порт
-    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    # Используем значения из аргументов командной строки
+    SERIAL_PORT = args.serial_port
 
-    # Создаем команду начала сканирования
-    start_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, START_SCAN_SUBCOMMAND)
+    # Последовательное сканирование на различных скоростях
+    for baud_rate in BAUD_RATES:
+        print(f"Сканирую шину на скорости {baud_rate} бод...")
+        try:
+            # Открываем последовательный порт с текущей скоростью
+            ser = serial.Serial(SERIAL_PORT, baud_rate, timeout=1)
 
-    # Начинаем сканирование
-    response = send_command(ser, start_scan_command)
-    if not process_response(response, debug=args.debug):
-        # Если сканирование не завершено, продолжаем
-        while True:
-            continue_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, CONTINUE_SCAN_SUBCOMMAND)
-            response = send_command(ser, continue_scan_command)
-            if process_response(response, debug=args.debug):
-                break  # Выходим из цикла, если сканирование завершено
+            # Создаем команду начала сканирования
+            start_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, START_SCAN_SUBCOMMAND)
 
-    # Закрываем последовательный порт
-    ser.close()
+            # Начинаем сканирование
+            response = send_command(ser, start_scan_command)
+            if not process_response(response, debug=args.debug):
+                # Если сканирование не завершено, продолжаем
+                while True:
+                    continue_scan_command = create_command(BROADCAST_ADDRESS, EXTENDED_FUNCTION_CODE, CONTINUE_SCAN_SUBCOMMAND)
+                    response = send_command(ser, continue_scan_command)
+                    if process_response(response, debug=args.debug):
+                        break  # Выходим из цикла, если сканирование завершено
+
+            # Закрываем последовательный порт
+            ser.close()
+        except serial.SerialException as e:
+            print(f"Ошибка открытия порта с скоростью {baud_rate} бод: {e}")
 
 if __name__ == "__main__":
     main()
