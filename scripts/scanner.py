@@ -84,7 +84,6 @@ def parse_and_print_response(hex_array, device_counter=[0]):
 def process_response(response, debug=False):
     # Проверка на пустой ответ
     if response is None or len(response) == 0:
-        print("Сканирование завершено.")
         return True  # Возвращаем True, чтобы остановить цикл
 
     # Проверка контрольной суммы ответа
@@ -101,7 +100,6 @@ def process_response(response, debug=False):
             (response[2] == RESPONSE_SUBCOMMAND or response[2] == END_SCAN_SUBCOMMAND)):
         # Проверка, что ответ содержит функцию конца сканирования
         if response[2] == END_SCAN_SUBCOMMAND:
-            print("Сканирование завершено.")
             return True  # Возвращаем True, чтобы остановить цикл
         else:
             # Преобразуем байты в строки в шестнадцатеричном формате и выводим их
@@ -150,6 +148,8 @@ def main():
             ser.close()
         except serial.SerialException as e:
             print(f"Ошибка открытия порта с скоростью {baud_rate} бод: {e}")
+
+    print("Сканирование завершено.")
 
 if __name__ == "__main__":
     main()
